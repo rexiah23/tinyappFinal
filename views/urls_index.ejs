@@ -9,6 +9,7 @@
   <title>TinyApp</title>
 </head>
 <body>
+  <%- include('partials/_header') %>
   <main style="margin: 1em;">
     <h3>My URLs</h3>
     <table class="table">
@@ -17,6 +18,7 @@
           <th scope="col">Short URL</th>
           <th scope="col">Long URL</th>  
           <th scope="col">Delete</th>
+          <th scope="col">Edit</th>
         </tr>
       </thead>
       <tbody>
@@ -28,7 +30,15 @@
               <form method="POST" action="/urls/9sm5xK/delete">
                 <input type="submit" value="Delete"></input>
               </form>
-          </td>
+            </td>
+            <td>
+              <form method="GET" action="/urls/<%= url %>"> 
+                <button type='submit'>Go to Edit Page</button> 
+              </form>
+            </td>
+            <td>
+              <!-- <% console.log(username) %> -->
+            </td>
           </tr>
         <% } %>
       </tbody>
