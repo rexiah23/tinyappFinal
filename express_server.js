@@ -40,9 +40,22 @@ app.get("/hello", (req, res) => {
   res.send("<html><body>Hello <b>World</b></body></html>\n");
 });
 
+app.get("/u/:shortURL", (req, res) => {
+  const longURL = urlDatabase[req.params.shortURL];
+  res.redirect(longURL);
+})
+
 app.post("/urls", (req,res) => {
   console.log(req.body); 
-  res.send("Ok")
+  const shortendURL = generateRandomString(); 
+  urlDatabase[shortendURL] = req.body.longURL; 
+  console.log(urlDatabase);
+  res.redirect(`http://localhost:8080/urls/:${shortendURL}`)
+})
+
+app.post("/urls/9sm5xK/delete", (req, res) => {
+  delete urlDatabase["9sm5xK"]; 
+  res.redirect(`http://localhost:8080/urls`);
 })
 
 app.listen(PORT, () => {
