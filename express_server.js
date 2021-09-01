@@ -9,9 +9,15 @@ app.use(cookieParser());
 app.set('view engine', 'ejs');
 
 const urlDatabase = {
-  "b2xVn2": "http://www.lighthouselabs.ca",
-  "9sm5xK": "http://www.google.com"
-};
+  "b2xVn2": {
+    longURL: "http://www.lighthouselabs.ca",
+    userID: "b5xVl3"
+  },
+  "9sm5xK": {
+    longURL: "http://www.google.com", 
+    userID: "b5xV244l3"
+  }
+}
 
 const users = {
   "b5xVl3": {
@@ -49,11 +55,16 @@ app.get("/urls.json", (req, res) => {
 app.get("/urls", (req, res) => {
   const templateVars = { 
     email: users[req.cookies["user_id"]],
-    urls: urlDatabase }
+    urls: urlDatabase, 
+    id: req.cookies["user_id"]
+   }
   res.render("urls_index", templateVars);
 })
 
 app.get("/urls/new", (req, res) => {
+  if (!req.cookies["user_id"]) {
+    return res.redirect("/login");
+  }
   const templateVars = {email: users[req.cookies["user_id"]]}
   res.render("urls_new", templateVars);
 });
@@ -63,7 +74,7 @@ app.get("/urls/:shortURL", (req, res) => {
   const templateVars = { 
     email: users[req.cookies["user_id"]],
     shortURL: req.params.shortURL, 
-    longURL: urlDatabase[req.params.shortURL] }
+    longURL: urlDatabase[req.params.shortURL].longURL }
   res.render("urls_show", templateVars);
 })
 
@@ -71,8 +82,15 @@ app.get("/hello", (req, res) => {
   res.send("<html><body>Hello <b>World</b></body></html>\n");
 });
 
-app.get("/u/:shortURL", (req, res) => {
-  const longURL = urlDatabase[req.params.shortURL];
+app.get("/u/:id", (req, res) => {
+  let longURL = urlDatabase[req.params.id];
+  if (!longURL) {
+    res.status(403);
+    return res.send("That id does not exist. Please try again with a correct id.")
+  }
+
+  longURL = urlDatabase[req.params.id].longURL;
+
   res.redirect(longURL);
 })
 
@@ -93,14 +111,17 @@ app.post("/register", (req, res) => {
   const userExists = doesUserExist(email, users); 
 
   if (!email) {
+    res.status(403)
     return res.send("Email cannot be empty. Please try again");
   }
 
   if (!password) {
+    res.status(403)
     return res.send("Password cannot be empty. Please try again");
   }
 
   if (userExists) {
+    res.status(403)
     return res.send("User already exists. Please try again");
   }
 
@@ -117,15 +138,20 @@ app.post("/register", (req, res) => {
 app.post("/urls", (req,res) => {
   console.log(req.body); 
   const shortendURL = generateRandomString(); 
-  urlDatabase[shortendURL] = req.body.longURL; 
-  console.log(urlDatabase);
+  urlDatabase[shortendURL] = {
+    longURL: req.body.longURL,
+    userID: req.cookies["user_id"]
+  }
   res.redirect(`/urls/${shortendURL}`);
 })
 
 app.post("/urls/:id", (req, res) => {
-  console.log('THIS HAPPENEDD!!!!!')
   const newLongURL = req.body.newLongURL;
-  urlDatabase[req.params.id] = newLongURL; 
+  urlDatabase[req.params.id] = 
+  {
+    longURL: newLongURL,
+    userID: req.cookies["user_id"]
+  }
   res.redirect('/urls');
 })
 
@@ -139,11 +165,14 @@ app.post("/login", (req,res) => {
   const userExists = doesUserExist(email, users); 
   
   if (!userExists) {
+    res.status(403)
     return res.send("Email does not exist");
   }
 
   const passwordCorrect = isPasswordCorrect(userExists.id, password, users); 
+
   if (!passwordCorrect) {
+    res.status(403)
     return res.send("Password is incorrect");
   }
 
