@@ -22,25 +22,22 @@
         </tr>
       </thead>
       <tbody>
-        
-        <% for(let url in urls) { %>
-          <% if(urls[url].userID === id) {%> 
-          <tr>
-            <td><%= url %></td>
-            <td><%= urls[url].longURL %></td>
-            <td>
-              <form method="POST" action="/urls/delete/<%= url %>">
-                <input type="submit" value="Delete"></input>
-              </form>
-            </td>
-            <td>
-              <form method="GET" action="/urls/<%= url %>"> 
-                <button type='submit'>Go to Edit Page</button> 
-              </form>
-            </td>
-          </tr>
-          <% } %>
-        <% } %>
+          <% urls.map(url => { %>
+            <tr>
+              <td><%= url.shortURL %></td>
+              <td><%= url.longURL %></td>
+              <td>
+                <form method="POST" action="/urls/<%= url.shortURL %>/delete">
+                  <input type="submit" value="Delete"></input>
+                </form>
+              </td>
+              <td>
+                <form method="GET" action="/urls/<%= url.shortURL %>"> 
+                  <button type='submit'>Go to Edit Page</button> 
+                </form>
+              </td>
+            </tr> 
+         <% }) %>
       </tbody>
     </table>
   </main>
