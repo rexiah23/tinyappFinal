@@ -2,38 +2,38 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcrypt');
-const { generateRandomString, getUserByEmail, isPasswordCorrect, getUserById } = require('./helpers');
+const { generateRandomString, getUserByEmail, isPasswordCorrect, urlsForUser } = require('./helpers');
 const app = express();
 const PORT = 8080; // default port 8080
 
-//Set View Engine 
+//Set View Engine
 app.set('view engine', 'ejs');
 
-//Use middleware's 
+//Use middleware's
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieSession({
   name: 'session',
   keys: ['keys1']
-}))
+}));
 
 //Database for URLS
 const urlDatabase = {
   "b2xVn2": {
     longURL: "http://www.lighthouselabs.ca",
-    shortURL: "b2xVn2", 
+    shortURL: "b2xVn2",
     id: "b5xVl3",
   },
   "9sm5xK": {
-    longURL: "http://www.google.com", 
-    shortURL: "9sm5xK", 
+    longURL: "http://www.google.com",
+    shortURL: "9sm5xK",
     id: "b5xV244l3"
   },
   "sgq3y6": {
     longURL: "http://www.youtube.com",
-    shortURL: "b2xVn2", 
+    shortURL: "b2xVn2",
     id: "b5xV2dl3",
   }
-}
+};
 
 //Database for users
 const users = {
@@ -42,25 +42,15 @@ const users = {
     email: "lewis.lee@mail.utoronto.ca",
     password: bcrypt.hashSync("lee123", 10)
   }
-}
-
-
-
-
-
-
+};
 
 // GET Routes
 app.get("/", (req, res) => {
-  res.send("Hello!");
-});
-
-app.get("/urls.json", (req, res) => {
-  res.json(urlDatabase);
-});
-
-app.get("/urls.users", (req, res) => {
-  res.json(users);
+  const loggedUserCookie = req.session.user_id;
+  if (!loggedUserCookie) {
+    return res.redirect('/login');
+  }
+  return res.redirect("/urls");
 });
 
 app.get("/urls", (req, res) => {
@@ -68,168 +58,166 @@ app.get("/urls", (req, res) => {
   if (!loggedUserCookie) {
     return res.render("urls_notLogged.ejs", {email: undefined});
   }
-
-  const matchingUrls = getUserById(loggedUserCookie, urlDatabase);
-  const templateVars = { 
+  const allowedURLS = urlsForUser(loggedUserCookie, urlDatabase);
+  const templateVars = {
     email: users[loggedUserCookie],
-    urls: matchingUrls, 
-   }
-  res.render("urls_index", templateVars);
-})
+    urls: allowedURLS,
+  };
+  return res.render("urls_index", templateVars);
+});
 
 app.get("/urls/new", (req, res) => {
-  if (!req.session.user_id) {
+  const loggedUserCookie = req.session.user_id;
+  if (!loggedUserCookie) {
     return res.redirect("/login");
   }
-  const templateVars = {email: users[req.session.user_id]}
+  const templateVars = {email: users[loggedUserCookie]};
   res.render("urls_new", templateVars);
 });
 
-app.get("/urls/:shortURL", (req, res) => {
-  const doesURLExist = urlDatabase[req.params.shortURL];
+app.get("/urls/:id", (req, res) => {
   const loggedUserCookie = req.session.user_id;
+  const doesURLExist = urlDatabase[req.params.id];
+  const checkURL = urlDatabase[req.params.id];
 
   if (!doesURLExist) {
     res.status(403);
-    return res.send("That shortURL does not exist. Please try again with a correct shortURL.")
+    return res.send('<h1>That shortURL does not exist. Please try again with a correct shortURL.</h1>');
   }
 
   if (!loggedUserCookie) {
     return res.render("urls_notLogged.ejs", {email: undefined});
   }
 
-  const templateVars = { 
-    email: users[req.session.user_id],
-    shortURL: req.params.shortURL, 
-    longURL: urlDatabase[req.params.shortURL].longURL }
-  res.render("urls_show", templateVars);
-})
+  const templateVars = {
+    email: users[loggedUserCookie],
+    shortURL: req.params.id,
+    longURL: urlDatabase[req.params.id].longURL };
 
-app.get("/hello", (req, res) => {
-  res.send("<html><body>Hello <b>World</b></body></html>\n");
+  if (checkURL.id !== loggedUserCookie) {
+    return res.send("<h1>You don't have access to this short URL</h1>");
+  }
+  
+  return res.render("urls_show", templateVars);
 });
 
 app.get("/u/:id", (req, res) => {
   let longURL = urlDatabase[req.params.id];
   if (!longURL) {
     res.status(403);
-    return res.send("That id does not exist. Please try again with a correct id.")
+    return res.send("<h1>That id does not exist. Please try again with a correct id.</h1>");
   }
+  //Need to restate longURL because if it is undefined, urlDatabase[req.params.id].longURL will throw an error
+  longURL = urlDatabase[req.params.id].longURL;
+  return res.redirect(longURL);
+});
 
-  longURL = urlDatabase[req.params.id].longURL
-
-  res.redirect(longURL);
-})
+app.get("/hello", (req, res) => {
+  return res.send("<html><body>Hello <b>World</b></body></html>");
+});
 
 app.get("/register", (req, res) => {
-  const templateVars = { email: req.session.user_id}
-  res.render("urls_register", templateVars);
-})
+  if (req.session.user_id) {
+    return res.redirect('/urls');
+  }
+  const templateVars = { email: req.session.user_id};
+  return res.render("urls_register", templateVars);
+});
 
 app.get("/users", (req, res) => {
-  res.json(users);
-})
+  return res.json(users);
+});
 
 app.get("/login", (req, res) => {
-  const templateVars = { email: req.session.user_id}
+  if (req.session.user_id) {
+    res.redirect('/urls');
+  }
+  const templateVars = { email: req.session.user_id};
   res.render("urls_login", templateVars);
-})
-
-
-
-
-
-
-
+});
 
 //POST Routes
 app.post("/register", (req, res) => {
-  const { email, password } = req.body; 
-  const userExists = getUserByEmail(email, users); 
+  const { email, password } = req.body;
+  const user = getUserByEmail(email, users);
   const hashedPassword = bcrypt.hashSync(password, 10);
-
   if (!email) {
-    res.status(403)
+    res.status(403);
     return res.send("Email cannot be empty. Please try again");
   }
-
   if (!password) {
-    res.status(403)
+    res.status(403);
     return res.send("Password cannot be empty. Please try again");
   }
-
-  if (userExists) {
-    res.status(403)
+  if (user) {
+    res.status(403);
     return res.send("User already exists. Please try again");
   }
-
   const newId = generateRandomString();
   users[newId] = {
-    id: newId, 
+    id: newId,
     email,
     password : hashedPassword
-  }
-  req.session.user_id = newId
-  res.redirect("/urls");
-})
+  };
+  req.session.user_id = newId;
+  return res.redirect("/urls");
+});
 
 app.post("/urls", (req,res) => {
-  const shortendURL = generateRandomString(); 
+  const shortendURL = generateRandomString();
   urlDatabase[shortendURL] = {
     longURL: req.body.longURL,
     shortURL: shortendURL,
     id: req.session.user_id
-  }
-  res.redirect(`/urls/${shortendURL}`);
-})
+  };
+  return res.redirect(`/urls/${shortendURL}`);
+});
 
-app.post("/urls/:shortURL/delete", (req, res) => {
-  const allowedURLS = getUserById(req.session.user_id, urlDatabase);
+app.post("/urls/:id/delete", (req, res) => {
+  const loggedUserCookie = req.session.user_id;
+  const allowedURLS = urlsForUser(loggedUserCookie, urlDatabase);
   for (const url of allowedURLS) {
-    if (url.id === req.session.user_id) {
-      delete urlDatabase[req.params.shortURL]; 
+    if (url.id === loggedUserCookie) {
+      delete urlDatabase[req.params.id];
     }
   }
-  res.redirect(`http://localhost:8080/urls`);
-})
+  return res.redirect(`http://localhost:8080/urls`);
+});
 
 app.post("/urls/:id", (req, res) => {
+  const loggedUserCookie = req.session.user_id;
   const newLongURL = req.body.newLongURL;
-  const prevShortURL = urlDatabase[req.params.id].shortURL; 
-  urlDatabase[req.params.id] = 
+  const prevShortURL = urlDatabase[loggedUserCookie].shortURL;
+  urlDatabase[req.params.id] =
   {
     longURL: newLongURL,
     shortURL: prevShortURL,
-    id: req.session.user_id
-  }
-  res.redirect('/urls');
-})
+    id: loggedUserCookie
+  };
+  return res.redirect('/urls');
+});
 
 app.post("/login", (req,res) => {
   const { email, password } = req.body;
-  const userExists = getUserByEmail(email, users); 
-
+  const userExists = getUserByEmail(email, users);
   if (!userExists) {
-    res.status(403)
+    res.status(403);
     return res.send("Email does not exist");
   }
-
-  const passwordCorrect = isPasswordCorrect(userExists.id, password, users); 
-
+  
+  const passwordCorrect = isPasswordCorrect(userExists.id, password, users);
   if (!passwordCorrect) {
-    res.status(403)
+    res.status(403);
     return res.send("Password is incorrect");
   }
-
-  req.session.user_id = userExists.id; 
-  res.redirect('/urls');
-})
+  req.session.user_id = userExists.id;
+  return res.redirect('/urls');
+});
 
 app.post("/logout", (req,res) => {
-  req.session.user_id = null;
-  res.redirect('/urls');
-})
-
+  req.session = null;
+  return res.redirect('/urls');
+});
 
 
 //Server Listen

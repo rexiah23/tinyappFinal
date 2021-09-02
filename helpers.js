@@ -1,35 +1,36 @@
 const bcrypt = require('bcrypt');
+
 const generateRandomString = () => {
   return Math.random().toString(36).substr(2, 8);
-}
+};
 
-function getUserByEmail (email, usersDataBase) {
+const getUserByEmail = (email, usersDataBase) => {
   for (const id in usersDataBase) {
     if (usersDataBase[id].email === email) {
       return usersDataBase[id];
     }
   }
-  return false; 
+  return false;
 }
 
 const isPasswordCorrect = (id, password, usersDataBase) => {
   return bcrypt.compareSync(password, usersDataBase[id].password);
-}
+};
 
-const getUserById = (id, urlDatabase) => {
-  const matchingUrls = []
-  for(let url in urlDatabase) { 
+const urlsForUser = (id, urlDatabase) => {
+  const matchingUrls = [];
+  for (let url in urlDatabase) {
     const currUrl = urlDatabase[url];
     if (currUrl.id === id) {
       matchingUrls.push(currUrl);
     }
   }
-  return matchingUrls; 
-} 
+  return matchingUrls;
+};
 
 module.exports = {
   generateRandomString,
   getUserByEmail,
   isPasswordCorrect,
-  getUserById
-}
+  urlsForUser
+};
