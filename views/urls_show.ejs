@@ -11,13 +11,29 @@
   <div class="card text-center">
       <div class="card-header"></div>
       <div class="card-body">
-        <h5 class="card-title">TinyURL for: <%= longURL %></h5>
+        <h5 class="card-title">TinyURL for: <%= data.longURL %></h5>
         <p class="card-text">Short URL: <a href="/u/<%= shortURL %>"><%= shortURL %></a></p>
       </div>
-      <form method="POST" action="/urls/<%= shortURL %>">
+      <form method="POST" action="/urls/<%= shortURL %>?_method=PUT">
         <input type= 'text' placeholder='New Input' name='newLongURL'></input>
         <button type='submit'>Update Long URL</button>
       </form>
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Unique Visitor Id</th>
+            <th scope="col">TimeStamp</th>  
+          </tr>
+        </thead>
+        <tbody>
+          <% data.alreadyVisited.forEach((el, i) => { %>
+            <tr>
+              <td><%=  el %></td>
+              <td><%=  data.timeStamps[i] %></td>
+            </tr>
+          <% }) %>  
+        </tbody>
+      </table>
     <div class="card-footer text-muted"></div>
   </div>
   <!-- Bootstrap JS -->

@@ -1,8 +1,10 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cookieSession = require('cookie-session');
+const cookieParser = require('cookie-parser');
+const methodOverride = require('method-override');
 const bcrypt = require('bcrypt');
-const { generateRandomString, getUserByEmail, isPasswordCorrect, urlsForUser } = require('./helpers');
+const { generateRandomString, getUserByEmail, isPasswordCorrect, urlsForUser, formatUrl } = require('./helpers');
 const app = express();
 const PORT = 8080; // default port 8080
 
@@ -11,6 +13,8 @@ app.set('view engine', 'ejs');
 
 //Use middleware's
 app.use(bodyParser.urlencoded({extended: true}));
+app.use(methodOverride('_method'));
+app.use(cookieParser());
 app.use(cookieSession({
   name: 'session',
   keys: ['keys1']
@@ -22,16 +26,27 @@ const urlDatabase = {
     longURL: "http://www.lighthouselabs.ca",
     shortURL: "b2xVn2",
     id: "b5xVl3",
+    totalVisitors: 0,
+    alreadyVisited: [],
+    timeStamps:[]
+   
   },
   "9sm5xK": {
     longURL: "http://www.google.com",
     shortURL: "9sm5xK",
-    id: "b5xV244l3"
+    id: "b5xV244l3",
+    totalVisitors: 0,
+    alreadyVisited: [],
+    timeStamps:[]
+  
   },
   "sgq3y6": {
     longURL: "http://www.youtube.com",
     shortURL: "b2xVn2",
     id: "b5xV2dl3",
+    totalVisitors: 0,
+    alreadyVisited: [],
+    timeStamps:[]
   }
 };
 
@@ -79,7 +94,7 @@ app.get("/urls/:id", (req, res) => {
   const loggedUserCookie = req.session.user_id;
   const doesURLExist = urlDatabase[req.params.id];
   const checkURL = urlDatabase[req.params.id];
-
+  
   if (!doesURLExist) {
     res.status(403);
     return res.send('<h1>That shortURL does not exist. Please try again with a correct shortURL.</h1>');
@@ -92,7 +107,9 @@ app.get("/urls/:id", (req, res) => {
   const templateVars = {
     email: users[loggedUserCookie],
     shortURL: req.params.id,
-    longURL: urlDatabase[req.params.id].longURL };
+    // longURL: urlDatabase[req.params.id].longURL,
+    data: urlDatabase[req.params.id]
+  };
 
   if (checkURL.id !== loggedUserCookie) {
     return res.send("<h1>You don't have access to this short URL</h1>");
@@ -102,14 +119,26 @@ app.get("/urls/:id", (req, res) => {
 });
 
 app.get("/u/:id", (req, res) => {
-  let longURL = urlDatabase[req.params.id];
-  if (!longURL) {
+  const currUrl = urlDatabase[req.params.id];
+  if (!currUrl) {
     res.status(403);
-    return res.send("<h1>That id does not exist. Please try again with a correct id.</h1>");
+    return res.send("<h1>That short URL does not exist. Please try again with a valid short URL.</h1>");
   }
-  //Need to restate longURL because if it is undefined, urlDatabase[req.params.id].longURL will throw an error
-  longURL = urlDatabase[req.params.id].longURL;
-  return res.redirect(longURL);
+
+  if (!req.session.visitor_id) {
+    const randomId = generateRandomString();
+    req.session.visitor_id = randomId;
+  }
+
+  if (!currUrl.alreadyVisited.includes(req.session.visitor_id)) {
+    const timeNow = Date.now();
+    currUrl.alreadyVisited.push(req.session.visitor_id);
+    currUrl.timeStamps.push(timeNow);
+  }
+
+  currUrl.totalVisitors ++;
+  
+  return res.redirect(currUrl.longURL);
 });
 
 app.get("/hello", (req, res) => {
@@ -134,6 +163,14 @@ app.get("/login", (req, res) => {
   }
   const templateVars = { email: req.session.user_id};
   res.render("urls_login", templateVars);
+});
+
+app.get("/urls.json", (req, res) => {
+  res.json(urlDatabase);
+});
+
+app.get("/users.json", (req, res) => {
+  res.json(users);
 });
 
 //POST Routes
@@ -165,36 +202,16 @@ app.post("/register", (req, res) => {
 
 app.post("/urls", (req,res) => {
   const shortendURL = generateRandomString();
+  const formatedLongURL = formatUrl(req.body.longURL);
   urlDatabase[shortendURL] = {
-    longURL: req.body.longURL,
+    longURL: formatedLongURL,
     shortURL: shortendURL,
-    id: req.session.user_id
+    id: req.session.user_id,
+    totalVisitors: 0,
+    alreadyVisited: [],
+    timeStamps: []
   };
   return res.redirect(`/urls/${shortendURL}`);
-});
-
-app.post("/urls/:id/delete", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
-  const allowedURLS = urlsForUser(loggedUserCookie, urlDatabase);
-  for (const url of allowedURLS) {
-    if (url.id === loggedUserCookie) {
-      delete urlDatabase[req.params.id];
-    }
-  }
-  return res.redirect(`http://localhost:8080/urls`);
-});
-
-app.post("/urls/:id", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
-  const newLongURL = req.body.newLongURL;
-  const prevShortURL = urlDatabase[loggedUserCookie].shortURL;
-  urlDatabase[req.params.id] =
-  {
-    longURL: newLongURL,
-    shortURL: prevShortURL,
-    id: loggedUserCookie
-  };
-  return res.redirect('/urls');
 });
 
 app.post("/login", (req,res) => {
@@ -215,8 +232,40 @@ app.post("/login", (req,res) => {
 });
 
 app.post("/logout", (req,res) => {
-  req.session = null;
+  req.session.user_id = null;
   return res.redirect('/urls');
+});
+
+//PUT Routes
+app.put("/urls/:id", (req, res) => {
+  const loggedUserCookie = req.session.user_id;
+  const newLongURL = formatUrl(req.body.newLongURL);
+  const prevShortURL = urlDatabase[req.params.id].shortURL;
+  const currtotalVisitors = urlDatabase[req.params.id].totalVisitors;
+  const alreadyVisited = urlDatabase[req.params.id].alreadyVisited;
+  const timeStamps = urlDatabase[req.params.id].timeStamps;
+  urlDatabase[req.params.id] =
+  {
+    longURL: newLongURL,
+    shortURL: prevShortURL,
+    id: loggedUserCookie,
+    totalVisitors: currtotalVisitors,
+    alreadyVisited,
+    timeStamps
+  };
+  return res.redirect('/urls');
+});
+
+//DELETE Routes
+app.delete("/urls/:id/delete", (req, res) => {
+  const loggedUserCookie = req.session.user_id;
+  const allowedURLS = urlsForUser(loggedUserCookie, urlDatabase);
+  for (const url of allowedURLS) {
+    if (url.id === loggedUserCookie) {
+      delete urlDatabase[req.params.id];
+    }
+  }
+  return res.redirect(`http://localhost:8080/urls`);
 });
 
 

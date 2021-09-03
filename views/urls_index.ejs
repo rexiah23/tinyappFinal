@@ -19,6 +19,8 @@
           <th scope="col">Long URL</th>  
           <th scope="col">Delete</th>
           <th scope="col">Edit</th>
+          <th scope="col">Total Visitors</th>
+          <th scope="col">Unique Visitors</th>
         </tr>
       </thead>
       <tbody>
@@ -27,7 +29,7 @@
               <td><%= url.shortURL %></td>
               <td><%= url.longURL %></td>
               <td>
-                <form method="POST" action="/urls/<%= url.shortURL %>/delete">
+                <form method="POST" action="/urls/<%= url.shortURL %>/delete?_method=DELETE">
                   <input type="submit" value="Delete"></input>
                 </form>
               </td>
@@ -35,6 +37,10 @@
                 <form method="GET" action="/urls/<%= url.shortURL %>"> 
                   <button type='submit'>Go to Edit Page</button> 
                 </form>
+              </td>
+              <td><%= url.totalVisitors %></td>
+              <td>
+                <%= url.alreadyVisited.length %>
               </td>
             </tr> 
          <% }) %>
