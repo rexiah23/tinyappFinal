@@ -61,37 +61,37 @@ const users = {
 
 // GET Routes
 app.get("/", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
-  if (!loggedUserCookie) {
+  const { user_id } = req.session;
+  if (!user_id) {
     return res.redirect('/login');
   }
   return res.redirect("/urls");
 });
 
 app.get("/urls", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
-  if (!loggedUserCookie) {
+  const { user_id } = req.session;
+  if (!user_id) {
     return res.render("urls_notLogged.ejs", {email: undefined});
   }
-  const allowedURLS = urlsForUser(loggedUserCookie, urlDatabase);
+  const allowedURLS = urlsForUser(user_id, urlDatabase);
   const templateVars = {
-    email: users[loggedUserCookie],
+    email: users[user_id],
     urls: allowedURLS,
   };
   return res.render("urls_index", templateVars);
 });
 
 app.get("/urls/new", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
-  if (!loggedUserCookie) {
+  const { user_id } = req.session;
+  if (!user_id) {
     return res.redirect("/login");
   }
-  const templateVars = {email: users[loggedUserCookie]};
+  const templateVars = {email: users[user_id]};
   res.render("urls_new", templateVars);
 });
 
 app.get("/urls/:id", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
+  const { user_id } = req.session;
   const doesURLExist = urlDatabase[req.params.id];
   const checkURL = urlDatabase[req.params.id];
   
@@ -100,18 +100,18 @@ app.get("/urls/:id", (req, res) => {
     return res.send('<h1>That shortURL does not exist. Please try again with a correct shortURL.</h1>');
   }
 
-  if (!loggedUserCookie) {
+  if (!user_id) {
     return res.render("urls_notLogged.ejs", {email: undefined});
   }
 
   const templateVars = {
-    email: users[loggedUserCookie],
+    email: users[user_id],
     shortURL: req.params.id,
     // longURL: urlDatabase[req.params.id].longURL,
     data: urlDatabase[req.params.id]
   };
 
-  if (checkURL.id !== loggedUserCookie) {
+  if (checkURL.id !== user_id) {
     return res.send("<h1>You don't have access to this short URL</h1>");
   }
   
@@ -178,18 +178,16 @@ app.post("/register", (req, res) => {
   const { email, password } = req.body;
   const user = getUserByEmail(email, users);
   const hashedPassword = bcrypt.hashSync(password, 10);
-  if (!email) {
+  if (!email || !password) {
     res.status(403);
-    return res.send("Email cannot be empty. Please try again");
+    return res.send("Fields cannot be empty. Please try again");
   }
-  if (!password) {
-    res.status(403);
-    return res.send("Password cannot be empty. Please try again");
-  }
+
   if (user) {
     res.status(403);
     return res.send("User already exists. Please try again");
   }
+  
   const newId = generateRandomString();
   users[newId] = {
     id: newId,
@@ -201,6 +199,10 @@ app.post("/register", (req, res) => {
 });
 
 app.post("/urls", (req,res) => {
+  const { user_id } = req.session;
+  if (!user_id) {
+    return res.send("<h1>Not logged in. Please login first to make a post</h1>");
+  }
   const shortendURL = generateRandomString();
   const formatedLongURL = formatUrl(req.body.longURL);
   urlDatabase[shortendURL] = {
@@ -238,18 +240,25 @@ app.post("/logout", (req,res) => {
 
 //PUT Routes
 app.put("/urls/:id", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
+  const { user_id } = req.session;
+  const id = req.params.id;
+  const urlOwner = urlDatabase[id].id;
+  if (!user_id) {
+    return res.send('<h1>You are not logged in. Please login and try again</h1>')
+  }
+
+  if (urlOwner !== user_id) {
+    return res.send('<h1>Access denied. You do not own this URL</h1>');
+  }
+
   const newLongURL = formatUrl(req.body.newLongURL);
-  const prevShortURL = urlDatabase[req.params.id].shortURL;
-  const currtotalVisitors = urlDatabase[req.params.id].totalVisitors;
-  const alreadyVisited = urlDatabase[req.params.id].alreadyVisited;
-  const timeStamps = urlDatabase[req.params.id].timeStamps;
-  urlDatabase[req.params.id] =
+  const { shortURL, totalVisitors, alreadyVisited, timeStamps } = urlDatabase[id];
+  urlDatabase[id] =
   {
     longURL: newLongURL,
-    shortURL: prevShortURL,
-    id: loggedUserCookie,
-    totalVisitors: currtotalVisitors,
+    shortURL,
+    id: user_id,
+    totalVisitors,
     alreadyVisited,
     timeStamps
   };
@@ -258,11 +267,21 @@ app.put("/urls/:id", (req, res) => {
 
 //DELETE Routes
 app.delete("/urls/:id/delete", (req, res) => {
-  const loggedUserCookie = req.session.user_id;
-  const allowedURLS = urlsForUser(loggedUserCookie, urlDatabase);
+  const { user_id } = req.session;
+  const id = req.params.id;
+  const urlOwner = urlDatabase[id].id;
+  if (!user_id) {
+    return res.send('<h1>You are not logged in. Please login and try again</h1>');
+  }
+
+  if (urlOwner !== user_id) {
+    return res.send('<h1>Access denied. You do not own this URL</h1>');
+  }
+
+  const allowedURLS = urlsForUser(user_id, urlDatabase);
   for (const url of allowedURLS) {
-    if (url.id === loggedUserCookie) {
-      delete urlDatabase[req.params.id];
+    if (url.id === user_id) {
+      delete urlDatabase[id];
     }
   }
   return res.redirect(`http://localhost:8080/urls`);
